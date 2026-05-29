@@ -1,0 +1,62 @@
+name: Deploy NuGet Feed
+
+on:
+  pull_request:
+    types:
+      - closed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-feed-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Ensure this run is still latest main
+        id: latest_main
+        run: pnpm check:latest-main
+
+      - run: pnpm validate
+        if: steps.latest_main.outputs.latest != 'false'
+
+      - run: pnpm typecheck
+        if: steps.latest_main.outputs.latest != 'false'
+
+      - run: pnpm test:release
+        if: steps.latest_main.outputs.latest != 'false'
+
+      - run: pnpm generate
+        if: steps.latest_main.outputs.latest != 'false'
+
+      - run: pnpm validate
+        if: steps.latest_main.outputs.latest != 'false'
+
+      - name: Deploy Worker
+        if: steps.latest_main.outputs.latest != 'false'
+        working-directory: worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm dlx wrangler deploy

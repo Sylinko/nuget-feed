@@ -1,0 +1,43 @@
+name: Validate NuGet Feed
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm validate
+
+      - run: pnpm typecheck
+
+      - run: pnpm test:release
+
+      - run: pnpm generate
+
+      - run: pnpm validate

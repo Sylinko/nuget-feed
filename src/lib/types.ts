@@ -1,0 +1,118 @@
+export type ArtifactManifest = {
+  url?: string;
+  sha256?: string;
+};
+
+export type PackageManifest = {
+  id?: string;
+  lowerId?: string;
+  source?: {
+    repository?: string;
+  };
+  policy?: {
+    requireSylinkoPrefix?: boolean;
+    allowOriginalPackageId?: boolean;
+  };
+};
+
+export type VersionManifest = {
+  version?: string;
+  lowerVersion?: string;
+  source?: {
+    repository?: string;
+    commit?: string;
+    tag?: string;
+    workflowRun?: string;
+  };
+  artifacts?: {
+    nupkg?: ArtifactManifest;
+    snupkg?: ArtifactManifest;
+    symbols?: ArtifactManifest;
+  };
+  review?: {
+    reason?: string;
+  };
+};
+
+export type BucketVersionEntry = {
+  fileName: string;
+  filePath: string;
+  manifest: VersionManifest;
+};
+
+export type BucketPackageEntry = {
+  lowerIdDirectory: string;
+  packagePath: string;
+  manifest: PackageManifest;
+  versions: BucketVersionEntry[];
+};
+
+export type Bucket = {
+  rootDirectory: string;
+  packages: BucketPackageEntry[];
+};
+
+export type RequiredArtifactManifest = {
+  url: string;
+  sha256: string;
+};
+
+export type RequiredPackageManifest = {
+  id: string;
+  lowerId: string;
+  source: {
+    repository: string;
+  };
+  policy?: {
+    requireSylinkoPrefix?: boolean;
+    allowOriginalPackageId?: boolean;
+  };
+};
+
+export type RequiredVersionManifest = {
+  version: string;
+  lowerVersion: string;
+  source: {
+    repository: string;
+    commit: string;
+    tag: string;
+    workflowRun: string;
+  };
+  artifacts: {
+    nupkg: RequiredArtifactManifest;
+    snupkg?: RequiredArtifactManifest;
+    symbols?: RequiredArtifactManifest;
+  };
+  review?: {
+    reason: string;
+  };
+};
+
+export type NuspecIdentity = {
+  id: string;
+  version: string;
+};
+
+export type VerifiedRecord = {
+  package: RequiredPackageManifest;
+  version: RequiredVersionManifest;
+  nuspecText: string;
+  nuspecIdentity: NuspecIdentity;
+  manifestPath: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+
+export type SimpleYamlScalar = string | boolean | null;
+export type SimpleYamlObject = {
+  [key: string]: SimpleYamlScalar | SimpleYamlObject;
+};
+
+export type ZipEntry = {
+  name: string;
+  compression: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  localHeaderOffset: number;
+};

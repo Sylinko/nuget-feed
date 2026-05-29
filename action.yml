@@ -1,0 +1,46 @@
+name: Release NuGet packages to Sylinko feed
+description: Create a GitHub Release, upload NuGet assets, and open a Sylinko/nuget-feed PR.
+
+inputs:
+  token:
+    description: Token with permission to push branches and create PRs in Sylinko/nuget-feed.
+    required: true
+  release-tag:
+    description: Shared GitHub Release tag containing package assets.
+    required: true
+  artifacts-directory:
+    description: Directory containing .nupkg and optional .symbols.nupkg or .snupkg artifacts.
+    required: false
+    default: artifacts
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
+    - name: Create GitHub Release and upload package assets
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
+      run: node "$GITHUB_ACTION_PATH/.github/actions/release/create-github-release.ts"
+
+    - uses: actions/checkout@v6
+      with:
+        repository: Sylinko/nuget-feed
+        token: ${{ inputs.token }}
+        path: ${{ github.workspace }}/.nuget-feed
+        fetch-depth: 0
+
+    - name: Create feed release PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        FEED_REPOSITORY: Sylinko/nuget-feed
+        FEED_REPOSITORY_PATH: ${{ github.workspace }}/.nuget-feed
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
+      run: node "$GITHUB_ACTION_PATH/.github/actions/release/release.ts"

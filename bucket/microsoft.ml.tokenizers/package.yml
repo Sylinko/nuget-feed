@@ -1,0 +1,9 @@
+id: Microsoft.ML.Tokenizers
+lowerId: microsoft.ml.tokenizers
+
+source:
+  repository: Sylinko/Microsoft.ML
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true

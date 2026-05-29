@@ -1,0 +1,9 @@
+id: Microsoft.ML.Tokenizers.Data.O200kBase
+lowerId: microsoft.ml.tokenizers.data.o200kbase
+
+source:
+  repository: Sylinko/Microsoft.ML
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true
