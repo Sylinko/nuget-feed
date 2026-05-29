@@ -2,10 +2,6 @@ name = "sylinko-nuget-feed"
 main = "src/index.ts"
 compatibility_date = "2026-05-29"
 
-routes = [
-  { pattern = "nuget.sylinko.com/*", zone_name = "sylinko.com" }
-]
-
 [assets]
 directory = "../generated"
 binding = "ASSETS"
