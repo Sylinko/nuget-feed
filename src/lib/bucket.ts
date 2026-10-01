@@ -1,9 +1,9 @@
 import path from "node:path";
 import { isGitHubReleaseAssetUrl } from "./github-release.ts";
-import { downloadIfNeeded, readNuspecFromNupkg, readNuspecIdentity, sha256File } from "./nuget-package.ts";
-import { assertLowercase, isValidNuGetVersion, isValidPackageId, lowerNuGetId } from "./nuget-version.ts";
+import { downloadIfNeeded, readNuspecFromNupkg, readNuspecMetadata, readPackageAssets, sha256File } from "./nuget-package.ts";
+import { assertLowercase, isValidNuGetVersion, isValidPackageId, lowerNuGetId, lowerNuGetVersion } from "./nuget-version.ts";
 import { listDirectories, listFiles, readText } from "./file-system.ts";
-import { parseSimpleYaml } from "./simple-yaml.ts";
+import { parseManifestYaml } from "./manifest-yaml.ts";
 import type {
   ArtifactManifest,
   Bucket,
@@ -22,7 +22,7 @@ export async function readBucket(rootDirectory: string): Promise<Bucket> {
 
   for (const lowerIdDirectory of packageDirectories) {
     const packagePath = path.join(bucketDirectory, lowerIdDirectory, "package.yml");
-    const packageManifest = parseSimpleYaml<PackageManifest>(await readText(packagePath), packagePath);
+    const packageManifest = parseManifestYaml<PackageManifest>(await readText(packagePath), packagePath);
     const versionDirectory = path.join(bucketDirectory, lowerIdDirectory, "versions");
     const versionFiles = (await listFiles(versionDirectory)).filter((file) => file.endsWith(".yml"));
     const versions: Bucket["packages"][number]["versions"] = [];
@@ -32,7 +32,7 @@ export async function readBucket(rootDirectory: string): Promise<Bucket> {
       versions.push({
         fileName,
         filePath: versionPath,
-        manifest: parseSimpleYaml<VersionManifest>(await readText(versionPath), versionPath)
+        manifest: parseManifestYaml<VersionManifest>(await readText(versionPath), versionPath)
       });
     }
 
@@ -95,13 +95,13 @@ export function validateBucketManifests(bucket: Bucket): string[] {
       const fileLowerVersion = versionEntry.fileName.slice(0, -".yml".length);
 
       if (version && !isValidNuGetVersion(version)) {
-        errors.push(`${label}: version is not a valid NuGet-style version`);
+        errors.push(`${label}: this feed requires a three-part SemVer version`);
       }
       if (lowerVersion && !assertLowercase(lowerVersion)) {
         errors.push(`${label}: lowerVersion must be lowercase`);
       }
-      if (version && lowerVersion && version.toLowerCase() !== lowerVersion) {
-        errors.push(`${label}: lowerVersion must equal lowercase version`);
+      if (version && isValidNuGetVersion(version) && lowerVersion && lowerNuGetVersion(version) !== lowerVersion) {
+        errors.push(`${label}: lowerVersion must equal normalized lowercase version without build metadata`);
       }
       if (lowerVersion && lowerVersion !== fileLowerVersion) {
         errors.push(`${label}: file name must match lowerVersion`);
@@ -111,6 +111,12 @@ export function validateBucketManifests(bucket: Bucket): string[] {
       expectString(errors, versionManifest.source?.commit, `${label}: source.commit`);
       expectString(errors, versionManifest.source?.tag, `${label}: source.tag`);
       expectString(errors, versionManifest.source?.workflowRun, `${label}: source.workflowRun`);
+      if (versionManifest.source?.repository !== manifest.source?.repository) {
+        errors.push(`${label}: source.repository must match package registration`);
+      }
+      if (versionManifest.listed !== undefined && typeof versionManifest.listed !== "boolean") {
+        errors.push(`${label}: listed must be boolean`);
+      }
       validateArtifact(errors, versionManifest.artifacts?.nupkg, `${label}: artifacts.nupkg`, true);
       validateArtifact(errors, versionManifest.artifacts?.snupkg, `${label}: artifacts.snupkg`, false);
       validateArtifact(errors, versionManifest.artifacts?.symbols, `${label}: artifacts.symbols`, false);
@@ -162,19 +168,20 @@ export async function buildVerifiedRecords(bucket: Bucket): Promise<{ records: V
         }
 
         const nuspecText = await readNuspecFromNupkg(nupkgPath);
-        const nuspecIdentity = readNuspecIdentity(nuspecText);
-        if (nuspecIdentity.id !== packageManifest.id) {
-          errors.push(`${versionEntry.filePath}: nuspec id ${nuspecIdentity.id} does not match ${packageManifest.id}`);
+        const metadata = readNuspecMetadata(nuspecText);
+        if (metadata.id !== packageManifest.id) {
+          errors.push(`${versionEntry.filePath}: nuspec id ${metadata.id} does not match ${packageManifest.id}`);
         }
-        if (nuspecIdentity.version !== versionManifest.version) {
-          errors.push(`${versionEntry.filePath}: nuspec version ${nuspecIdentity.version} does not match ${versionManifest.version}`);
+        if (metadata.version !== versionManifest.version) {
+          errors.push(`${versionEntry.filePath}: nuspec version ${metadata.version} does not match ${versionManifest.version}`);
         }
 
         records.push({
           package: packageManifest,
           version: versionManifest,
           nuspecText,
-          nuspecIdentity,
+          metadata,
+          assets: await readPackageAssets(nupkgPath, metadata),
           manifestPath: versionEntry.filePath
         });
       } catch (error: unknown) {
@@ -269,6 +276,7 @@ function asRequiredVersionManifest(manifest: VersionManifest): RequiredVersionMa
   const required: RequiredVersionManifest = {
     version: manifest.version,
     lowerVersion: manifest.lowerVersion,
+    listed: manifest.listed ?? true,
     source: {
       repository: manifest.source.repository,
       commit: manifest.source.commit,

@@ -1,11 +1,10 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import type { JsonValue } from "./types.ts";
 
 export async function pathExists(filePath: string): Promise<boolean> {
   try {
-    await readFile(filePath);
+    await access(filePath);
     return true;
   } catch (error: unknown) {
     if (isNodeError(error) && error.code === "ENOENT") {
@@ -33,7 +32,7 @@ export async function writeText(filePath: string, text: string): Promise<void> {
   await writeFile(filePath, text, "utf8");
 }
 
-export async function writeJson(filePath: string, value: JsonValue): Promise<void> {
+export async function writeJson(filePath: string, value: object): Promise<void> {
   await writeText(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 

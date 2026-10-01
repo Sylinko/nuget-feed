@@ -5,3 +5,10 @@ compatibility_date = "2026-05-29"
 [assets]
 directory = "../generated"
 binding = "ASSETS"
+run_worker_first = ["/v3/query", "/v3/autocomplete", "/v3/registration/*"]
+
+[observability]
+enabled = true
+
+[observability.traces]
+enabled = true

@@ -2,9 +2,9 @@ import { basename, join, resolve } from "node:path";
 import { buildGitHubReleaseAssetUrl } from "./github-release.ts";
 import { pathExists, readText, walkFiles, writeText } from "./file-system.ts";
 import { readNuspecFromNupkg, readNuspecIdentity, sha256File } from "./nuget-package.ts";
-import { isValidNuGetVersion, isValidPackageId, lowerNuGetId } from "./nuget-version.ts";
-import { parseSimpleYaml, stringifySimpleYaml } from "./simple-yaml.ts";
-import type { PackageManifest, SimpleYamlObject } from "./types.ts";
+import { isValidNuGetVersion, isValidPackageId, lowerNuGetId, lowerNuGetVersion } from "./nuget-version.ts";
+import { parseManifestYaml, stringifyManifestYaml } from "./manifest-yaml.ts";
+import type { PackageManifest } from "./types.ts";
 
 export type ReleaseBatchInput = {
   feedRepositoryPath: string;
@@ -47,7 +47,7 @@ export async function releaseBatch(input: ReleaseBatchInput): Promise<ReleasedPa
       throw new Error(`package manifest does not exist in nuget-feed: bucket/${candidate.lowerId}/package.yml`);
     }
 
-    const packageManifest = parseSimpleYaml<PackageManifest>(await readText(packageManifestPath), packageManifestPath);
+    const packageManifest = parseManifestYaml<PackageManifest>(await readText(packageManifestPath), packageManifestPath);
     if (packageManifest.id !== candidate.id || packageManifest.lowerId !== candidate.lowerId) {
       throw new Error(`package manifest identity does not match ${candidate.id}`);
     }
@@ -60,7 +60,7 @@ export async function releaseBatch(input: ReleaseBatchInput): Promise<ReleasedPa
       throw new Error(`version manifest already exists: bucket/${candidate.lowerId}/versions/${candidate.lowerVersion}.yml`);
     }
 
-    await writeText(versionManifestPath, stringifySimpleYaml(await buildVersionManifest(input, candidate)));
+    await writeText(versionManifestPath, stringifyManifestYaml(await buildVersionManifest(input, candidate)));
     const releasedPackage: ReleasedPackage = {
       id: candidate.id,
       version: candidate.version,
@@ -115,11 +115,11 @@ async function discoverPackages(artifactsDirectory: string): Promise<CandidatePa
       throw new Error(`nupkg nuspec id ${identity.id} is not a valid NuGet package ID`);
     }
     if (!isValidNuGetVersion(identity.version)) {
-      throw new Error(`nupkg nuspec version ${identity.version} is not a valid NuGet-style version`);
+      throw new Error(`nupkg nuspec version ${identity.version}: this feed requires a three-part SemVer version`);
     }
 
     const lowerId = lowerNuGetId(identity.id);
-    const lowerVersion = identity.version.toLowerCase();
+    const lowerVersion = lowerNuGetVersion(identity.version);
     const packageKey = `${lowerId}@${lowerVersion}`;
     if (seenPackages.has(packageKey)) {
       throw new Error(`duplicate package version in artifacts: ${packageKey}`);
@@ -163,8 +163,8 @@ async function discoverPackages(artifactsDirectory: string): Promise<CandidatePa
   return candidates;
 }
 
-async function buildVersionManifest(input: ReleaseBatchInput, candidate: CandidatePackage): Promise<SimpleYamlObject> {
-  const artifacts: SimpleYamlObject = {
+async function buildVersionManifest(input: ReleaseBatchInput, candidate: CandidatePackage): Promise<object> {
+  const artifacts: Record<string, object> = {
     nupkg: {
       url: buildGitHubReleaseAssetUrl(input.sourceRepository, input.releaseTag, basename(candidate.nupkgPath)),
       sha256: await sha256File(candidate.nupkgPath)

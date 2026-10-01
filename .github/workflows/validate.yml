@@ -38,6 +38,8 @@ jobs:
 
       - run: pnpm test:release
 
+      - run: pnpm test:feed
+
       - run: pnpm generate
 
       - run: pnpm validate

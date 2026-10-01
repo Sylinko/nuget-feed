@@ -88,3 +88,7 @@ out/
 
 # Built Visual Studio Code Extensions
 *.vsix
+
+# Generated Worker runtime and binding types
+worker/worker-configuration.d.ts
+worker/.wrangler/

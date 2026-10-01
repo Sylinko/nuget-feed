@@ -13,5 +13,5 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-await generateFeed(rootDirectory, records);
+await generateFeed(rootDirectory, records, process.env.FEED_BASE_URL);
 console.log(`Generated NuGet feed metadata for ${records.length} package version(s).`);

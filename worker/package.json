@@ -8,6 +8,10 @@
     "node": ">=24"
   },
   "scripts": {
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "types": "wrangler types worker-configuration.d.ts"
+  },
+  "devDependencies": {
+    "wrangler": "4.145.0"
   }
 }

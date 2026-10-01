@@ -18,6 +18,7 @@ export type PackageManifest = {
 export type VersionManifest = {
   version?: string;
   lowerVersion?: string;
+  listed?: boolean;
   source?: {
     repository?: string;
     commit?: string;
@@ -72,6 +73,7 @@ export type RequiredPackageManifest = {
 export type RequiredVersionManifest = {
   version: string;
   lowerVersion: string;
+  listed: boolean;
   source: {
     repository: string;
     commit: string;
@@ -97,22 +99,39 @@ export type VerifiedRecord = {
   package: RequiredPackageManifest;
   version: RequiredVersionManifest;
   nuspecText: string;
-  nuspecIdentity: NuspecIdentity;
+  metadata: PackageMetadata;
+  assets: PackageAsset[];
   manifestPath: string;
 };
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
-
-export type SimpleYamlScalar = string | boolean | null;
-export type SimpleYamlObject = {
-  [key: string]: SimpleYamlScalar | SimpleYamlObject;
+export type DependencyGroup = {
+  targetFramework?: string;
+  dependencies: { id: string; range?: string }[];
 };
 
-export type ZipEntry = {
+export type PackageMetadata = NuspecIdentity & {
+  authors?: string;
+  description?: string;
+  title?: string;
+  summary?: string;
+  projectUrl?: string;
+  licenseUrl?: string;
+  licenseExpression?: string;
+  iconUrl?: string;
+  copyright?: string;
+  language?: string;
+  releaseNotes?: string;
+  minClientVersion?: string;
+  requireLicenseAcceptance?: boolean;
+  tags: string[];
+  packageTypes: { name: string; version?: string }[];
+  dependencyGroups: DependencyGroup[];
+  iconFile?: string;
+  readmeFile?: string;
+  licenseFile?: string;
+};
+
+export type PackageAsset = {
   name: string;
-  compression: number;
-  compressedSize: number;
-  uncompressedSize: number;
-  localHeaderOffset: number;
+  content: Buffer;
 };

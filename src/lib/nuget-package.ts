@@ -1,23 +1,42 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { rename, rm } from "node:fs/promises";
+import { dirname, posix } from "node:path";
 import { pipeline } from "node:stream/promises";
-import { inflateRawSync } from "node:zlib";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { openPromise } from "yauzl";
 import { ensureDir, pathExists } from "./file-system.ts";
-import type { NuspecIdentity, ZipEntry } from "./types.ts";
+import type { NuspecIdentity, PackageAsset, PackageMetadata, DependencyGroup } from "./types.ts";
+
+const MAX_NUSPEC_BYTES = 1024 * 1024;
+const MAX_ASSET_BYTES = 10 * 1024 * 1024;
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@",
+  removeNSPrefix: true,
+  parseTagValue: false,
+  parseAttributeValue: false,
+  htmlEntities: true,
+  trimValues: true,
+  isArray: (name) => ["dependency", "group", "packageType"].includes(name)
+});
 
 export async function downloadIfNeeded(url: string, filePath: string): Promise<void> {
   if (await pathExists(filePath)) {
     return;
   }
-
   await ensureDir(dirname(filePath));
   const response = await fetch(url);
   if (!response.ok || !response.body) {
     throw new Error(`failed to download ${url}: HTTP ${response.status}`);
   }
-  await pipeline(response.body, createWriteStream(filePath));
+  const temporaryPath = `${filePath}.${process.pid}.download`;
+  try {
+    await pipeline(response.body, createWriteStream(temporaryPath));
+    await rename(temporaryPath, filePath);
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
 }
 
 export async function sha256File(filePath: string): Promise<string> {
@@ -27,97 +46,197 @@ export async function sha256File(filePath: string): Promise<string> {
 }
 
 export async function readNuspecFromNupkg(filePath: string): Promise<string> {
-  const archive = await readFile(filePath);
-  const entries = readZipEntries(archive);
-  const nuspec = entries.find((entry) => entry.name.toLowerCase().endsWith(".nuspec") && !entry.name.includes("/"));
-  if (!nuspec) {
-    throw new Error(`${filePath}: no root .nuspec entry found`);
+  const entries = await readArchiveEntries(filePath, (name) => !name.includes("/") && name.toLowerCase().endsWith(".nuspec"), MAX_NUSPEC_BYTES);
+  if (entries.size !== 1) {
+    throw new Error(`${filePath}: expected exactly one root .nuspec entry, found ${entries.size}`);
   }
-  return extractZipEntry(archive, nuspec).toString("utf8");
+  return [...entries.values()][0].toString("utf8");
 }
 
 export function readNuspecIdentity(nuspecText: string): NuspecIdentity {
-  const id = firstXmlText(nuspecText, "id");
-  const version = firstXmlText(nuspecText, "version");
-  if (!id || !version) {
-    throw new Error("nuspec metadata must contain id and version");
-  }
+  const { id, version } = readNuspecMetadata(nuspecText);
   return { id, version };
 }
 
-function firstXmlText(text: string, name: string): string | null {
-  const match = new RegExp(`<${name}>\\s*([^<]+?)\\s*</${name}>`, "i").exec(text);
-  return match ? decodeXml(match[1].trim()) : null;
-}
-
-function decodeXml(value: string): string {
-  return value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&amp;", "&");
-}
-
-function readZipEntries(buffer: Buffer): ZipEntry[] {
-  const eocdOffset = findEndOfCentralDirectory(buffer);
-  const entryCount = buffer.readUInt16LE(eocdOffset + 10);
-  const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
-  const entries: ZipEntry[] = [];
-  let offset = centralDirectoryOffset;
-
-  for (let index = 0; index < entryCount; index += 1) {
-    if (buffer.readUInt32LE(offset) !== 0x02014b50) {
-      throw new Error("invalid zip central directory");
-    }
-
-    const compression = buffer.readUInt16LE(offset + 10);
-    const compressedSize = buffer.readUInt32LE(offset + 20);
-    const uncompressedSize = buffer.readUInt32LE(offset + 24);
-    const nameLength = buffer.readUInt16LE(offset + 28);
-    const extraLength = buffer.readUInt16LE(offset + 30);
-    const commentLength = buffer.readUInt16LE(offset + 32);
-    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
-    const name = buffer.toString("utf8", offset + 46, offset + 46 + nameLength).replaceAll("\\", "/");
-
-    entries.push({ name, compression, compressedSize, uncompressedSize, localHeaderOffset });
-    offset += 46 + nameLength + extraLength + commentLength;
+export function readNuspecMetadata(nuspecText: string): PackageMetadata {
+  if (/<!DOCTYPE\b|<!ENTITY\b/i.test(nuspecText)) {
+    throw new Error("nuspec DTD and custom entity declarations are not supported");
   }
-
-  return entries;
-}
-
-function extractZipEntry(buffer: Buffer, entry: ZipEntry): Buffer {
-  const offset = entry.localHeaderOffset;
-  if (buffer.readUInt32LE(offset) !== 0x04034b50) {
-    throw new Error(`invalid local zip header for ${entry.name}`);
+  const validation = XMLValidator.validate(nuspecText);
+  if (validation !== true) {
+    throw new Error(`invalid nuspec XML: ${validation.err.msg}`);
   }
-
-  const nameLength = buffer.readUInt16LE(offset + 26);
-  const extraLength = buffer.readUInt16LE(offset + 28);
-  const dataStart = offset + 30 + nameLength + extraLength;
-  const compressed = buffer.subarray(dataStart, dataStart + entry.compressedSize);
-
-  if (entry.compression === 0) {
-    return compressed;
-  }
-  if (entry.compression === 8) {
-    const inflated = inflateRawSync(compressed);
-    if (inflated.length !== entry.uncompressedSize) {
-      throw new Error(`unexpected uncompressed size for ${entry.name}`);
-    }
-    return inflated;
-  }
-
-  throw new Error(`unsupported zip compression method ${entry.compression} for ${entry.name}`);
-}
-
-function findEndOfCentralDirectory(buffer: Buffer): number {
-  const minimum = Math.max(0, buffer.length - 65557);
-  for (let offset = buffer.length - 22; offset >= minimum; offset -= 1) {
-    if (buffer.readUInt32LE(offset) === 0x06054b50) {
-      return offset;
+  const document: unknown = xmlParser.parse(nuspecText);
+  const root = xmlObject(xmlObject(document, "nuspec").package, "package");
+  const node = xmlObject(root.metadata, "metadata");
+  const metadata: PackageMetadata = {
+    id: requiredText(node.id, "id"),
+    version: requiredText(node.version, "version"),
+    tags: [],
+    packageTypes: [],
+    dependencyGroups: []
+  };
+  for (const key of ["authors", "description", "title", "summary", "projectUrl", "licenseUrl", "iconUrl", "copyright", "language", "releaseNotes"] as const) {
+    const value = xmlText(node[key]);
+    if (value !== undefined) {
+      metadata[key] = value;
     }
   }
-  throw new Error("zip end of central directory not found");
+  const minClientVersion = xmlText(node["@minClientVersion"]);
+  if (minClientVersion) {
+    metadata.minClientVersion = minClientVersion;
+  }
+  const tags = xmlText(node.tags);
+  if (tags) {
+    metadata.tags = tags.split(/[\s,;]+/).filter(Boolean);
+  }
+  const acceptance = xmlText(node.requireLicenseAcceptance);
+  if (acceptance !== undefined) {
+    if (!/^(true|false)$/i.test(acceptance)) {
+      throw new Error("requireLicenseAcceptance must be true or false");
+    }
+    metadata.requireLicenseAcceptance = acceptance.toLowerCase() === "true";
+  }
+  if (node.dependencies !== undefined) {
+    const dependencies = optionalObject(node.dependencies, "dependencies");
+    if (dependencies.dependency !== undefined) {
+      metadata.dependencyGroups.push(readDependencyGroup(dependencies));
+    }
+    for (const group of xmlArray(dependencies.group)) {
+      metadata.dependencyGroups.push(readDependencyGroup(optionalObject(group, "dependency group")));
+    }
+  }
+  if (node.packageTypes !== undefined) {
+    for (const item of xmlArray(optionalObject(node.packageTypes, "packageTypes").packageType)) {
+      const type = xmlObject(item, "packageType");
+      const name = requiredText(type["@name"], "packageType name");
+      const version = xmlText(type["@version"]);
+      metadata.packageTypes.push(version ? { name, version } : { name });
+    }
+  }
+  if (metadata.packageTypes.length === 0) {
+    metadata.packageTypes.push({ name: "Dependency" });
+  }
+  const icon = xmlText(node.icon);
+  const readme = xmlText(node.readme);
+  if (icon) {
+    metadata.iconFile = packageEntryPath(icon);
+  }
+  if (readme) {
+    metadata.readmeFile = packageEntryPath(readme);
+  }
+  if (node.license !== undefined) {
+    const license = xmlObject(node.license, "license");
+    const value = requiredText(license["#text"], "license");
+    if (license["@type"] === "expression") {
+      metadata.licenseExpression = value;
+    } else if (license["@type"] === "file") {
+      metadata.licenseFile = packageEntryPath(value);
+    } else {
+      throw new Error("nuspec license type must be expression or file");
+    }
+  }
+  return metadata;
+}
+
+export async function readPackageAssets(filePath: string, metadata: PackageMetadata): Promise<PackageAsset[]> {
+  const declared = [metadata.iconFile, metadata.readmeFile, metadata.licenseFile].filter((name): name is string => name !== undefined);
+  if (declared.length === 0) {
+    return [];
+  }
+  const entries = await readArchiveEntries(filePath, (name) => declared.includes(name), MAX_ASSET_BYTES);
+  return [...entries.entries()].map(([name, content]) => ({ name, content }));
+}
+
+async function readArchiveEntries(filePath: string, shouldRead: (name: string) => boolean, maxBytes: number): Promise<Map<string, Buffer>> {
+  const archive = await openPromise(filePath, { autoClose: false, validateEntrySizes: true, strictFileNames: true });
+  const result = new Map<string, Buffer>();
+  try {
+    for await (const entry of archive.eachEntry()) {
+      if (!shouldRead(entry.fileName)) {
+        continue;
+      }
+      if (result.has(entry.fileName)) {
+        throw new Error(`${filePath}: duplicate archive entry ${entry.fileName}`);
+      }
+      if (entry.uncompressedSize > maxBytes) {
+        throw new Error(`${filePath}: ${entry.fileName} exceeds ${maxBytes} bytes`);
+      }
+      const stream = await archive.openReadStreamPromise(entry);
+      const chunks: Buffer[] = [];
+      let length = 0;
+      try {
+        for await (const chunk of stream) {
+          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          length += bytes.length;
+          if (length > maxBytes) {
+            throw new Error(`${filePath}: ${entry.fileName} exceeds ${maxBytes} bytes`);
+          }
+          chunks.push(bytes);
+        }
+      } finally {
+        stream.destroy();
+      }
+      result.set(entry.fileName, Buffer.concat(chunks));
+    }
+  } finally {
+    archive.close();
+  }
+  return result;
+}
+
+function readDependencyGroup(node: Record<string, unknown>): DependencyGroup {
+  const group: DependencyGroup = { dependencies: [] };
+  const targetFramework = xmlText(node["@targetFramework"]);
+  if (targetFramework) {
+    group.targetFramework = targetFramework;
+  }
+  for (const item of xmlArray(node.dependency)) {
+    const dependency = xmlObject(item, "dependency");
+    const id = requiredText(dependency["@id"], "dependency id");
+    const range = xmlText(dependency["@version"]);
+    group.dependencies.push(range ? { id, range } : { id });
+  }
+  return group;
+}
+
+function xmlObject(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`nuspec ${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function optionalObject(value: unknown, label: string): Record<string, unknown> {
+  return value === "" ? {} : xmlObject(value, label);
+}
+
+function xmlText(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error("nuspec text value must be a string");
+  }
+  return value.trim();
+}
+
+function requiredText(value: unknown, label: string): string {
+  const text = xmlText(value);
+  if (!text) {
+    throw new Error(`nuspec metadata must contain ${label}`);
+  }
+  return text;
+}
+
+function xmlArray(value: unknown): unknown[] {
+  return value === undefined ? [] : Array.isArray(value) ? value : [value];
+}
+
+function packageEntryPath(value: string): string {
+  const normalized = value.replaceAll("\\", "/");
+  if (normalized.startsWith("/") || normalized.includes(":") || normalized.split("/").includes("..") || posix.normalize(normalized) !== normalized) {
+    throw new Error(`invalid package metadata path: ${value}`);
+  }
+  return normalized;
 }
