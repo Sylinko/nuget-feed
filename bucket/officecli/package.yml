@@ -1,0 +1,9 @@
+id: OfficeCLI
+lowerId: officecli
+
+source:
+  repository: Sylinko/OfficeCLI
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true
