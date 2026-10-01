@@ -1,0 +1,9 @@
+id: MessagePack.Annotations
+lowerId: messagepack.annotations
+
+source:
+  repository: Sylinko/MessagePack-CSharp
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true

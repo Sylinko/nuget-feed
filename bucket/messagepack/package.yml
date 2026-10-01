@@ -1,0 +1,9 @@
+id: MessagePack
+lowerId: messagepack
+
+source:
+  repository: Sylinko/MessagePack-CSharp
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true

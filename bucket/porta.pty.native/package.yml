@@ -1,0 +1,9 @@
+id: Porta.Pty.Native
+lowerId: porta.pty.native
+
+source:
+  repository: Sylinko/Porta.Pty
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true

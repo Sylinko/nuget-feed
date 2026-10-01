@@ -1,0 +1,9 @@
+id: EverythingNetCore
+lowerId: everythingnetcore
+
+source:
+  repository: Sylinko/EverythingNetCore
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true

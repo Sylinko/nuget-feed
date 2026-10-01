@@ -1,0 +1,9 @@
+id: MessagePackAnalyzer
+lowerId: messagepackanalyzer
+
+source:
+  repository: Sylinko/MessagePack-CSharp
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true
