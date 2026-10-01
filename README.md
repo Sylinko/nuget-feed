@@ -237,3 +237,29 @@ pnpm generate
 ```
 
 The default base URL is always `https://nuget.sylinko.com`. The override accepts an HTTP(S) origin only and is intended for previews. Production CI regenerates output using the default.
+
+## License and package metadata
+
+This project's original code, workflows, documentation, and configuration are
+licensed under the [MIT License](LICENSE), copyright 2026 Sylinko and contributors.
+This includes the original package registrations and version manifests in
+`bucket/`. The MIT grant covers only rights held by this project's authors and
+contributors; it does not relicense third-party material.
+
+| Content | Applicable license |
+| --- | --- |
+| Feed implementation, documentation, and original `bucket/` manifests | This repository's MIT License |
+| NuGet packages and symbols referenced by manifests or served by the feed | Each package's own applicable licenses and notices |
+| Copied package descriptions, nuspec files, icons, readmes, license files, and other upstream material, including copies in generated output | Their original applicable licenses and rights |
+| Third-party implementation dependencies | Each dependency's own license |
+
+Generating registration/search JSON or wrapping upstream content in HTML does not
+change the licensing of the underlying material. Consult each package's license
+metadata, included license files, and upstream notices for its terms; the feed's
+MIT License is not a substitute. Package IDs, author names, and links identify
+upstream projects and do not grant trademark rights or imply their endorsement.
+
+You may reuse the feed implementation and original manifests under MIT, including
+for a feed with different packages. A fork operates with its own repository,
+credentials, domain, and deployment configuration; this license does not grant
+access to Sylinko's accounts or infrastructure.
