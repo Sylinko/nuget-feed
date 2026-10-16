@@ -1,0 +1,11 @@
+version: 999.20261016.4
+lowerVersion: 999.20261016.4
+source:
+  repository: Sylinko/EverythingNetCore
+  commit: 6e0155937ee73aac81431eb62a309e55632e7174
+  tag: nuget/EverythingNetCore/999.20261016.4
+  workflowRun: https://github.com/Sylinko/EverythingNetCore/actions/runs/38844686376
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/EverythingNetCore/releases/download/nuget%2FEverythingNetCore%2F999.20261016.4/EverythingNetCore.999.20261016.4.nupkg
+    sha256: 303f2b724e4615c3bf0abcf3a136019f2c068b3b49dfecf9147ff2f1fafdaf1b
