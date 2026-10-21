@@ -1,0 +1,9 @@
+id: Avalonia.Native
+lowerId: avalonia.native
+
+source:
+  repository: Sylinko/Avalonia
+
+policy:
+  requireSylinkoPrefix: false
+  allowOriginalPackageId: true
