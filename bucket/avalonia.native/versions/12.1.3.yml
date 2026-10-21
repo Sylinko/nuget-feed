@@ -1,0 +1,14 @@
+version: 12.1.3
+lowerVersion: 12.1.3
+source:
+  repository: Sylinko/Avalonia
+  commit: f08f1de0c1510b00f1912b909a53f05daf6171fe
+  tag: nuget/Avalonia.Native/12.1.3
+  workflowRun: https://github.com/Sylinko/Avalonia/actions/runs/39651265453
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/Avalonia/releases/download/nuget%2FAvalonia.Native%2F12.1.3/Avalonia.Native.12.1.3.nupkg
+    sha256: a75732e885f08288405f58b6a613f8f7932dd8c9440a9afd5f6ac84843142ffb
+  snupkg:
+    url: https://github.com/Sylinko/Avalonia/releases/download/nuget%2FAvalonia.Native%2F12.1.3/Avalonia.Native.12.1.3.snupkg
+    sha256: 548de104ab4c03821dea64e7b3882d8efee18fe8dd993fc39db1c50eb2d34608
