@@ -1,0 +1,14 @@
+version: 999.20261111.2
+lowerVersion: 999.20261111.2
+source:
+  repository: Sylinko/MessagePack-CSharp
+  commit: 7d0a50c8be9d8323c5dcf39c468d1907113cdd20
+  tag: nuget/MessagePack-CSharp/999.20261111.2
+  workflowRun: https://github.com/Sylinko/MessagePack-CSharp/actions/runs/43032247112
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/MessagePack-CSharp/releases/download/nuget%2FMessagePack-CSharp%2F999.20261111.2/MessagePack.Annotations.999.20261111.2.nupkg
+    sha256: c55f835556ee765c02e60b4d66e4c466f1f6f1a71792ed73791f9a87e17157f2
+  snupkg:
+    url: https://github.com/Sylinko/MessagePack-CSharp/releases/download/nuget%2FMessagePack-CSharp%2F999.20261111.2/MessagePack.Annotations.999.20261111.2.snupkg
+    sha256: 05f3208e2ed483dfee48c93a5ccee7991d2036e797232d7e19dd735d6b156d77
