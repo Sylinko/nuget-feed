@@ -1,0 +1,11 @@
+version: 999.20261111.2
+lowerVersion: 999.20261111.2
+source:
+  repository: Sylinko/MessagePack-CSharp
+  commit: 7d0a50c8be9d8323c5dcf39c468d1907113cdd20
+  tag: nuget/MessagePack-CSharp/999.20261111.2
+  workflowRun: https://github.com/Sylinko/MessagePack-CSharp/actions/runs/43032247112
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/MessagePack-CSharp/releases/download/nuget%2FMessagePack-CSharp%2F999.20261111.2/MessagePackAnalyzer.999.20261111.2.nupkg
+    sha256: 4b6268d7e423a5a5ee338cd942791947a611362b3c13c12b10f954cd5215a0a1
