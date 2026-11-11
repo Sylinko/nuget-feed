@@ -1,0 +1,14 @@
+version: 7.0.0
+lowerVersion: 7.0.0
+source:
+  repository: Sylinko/Microsoft.ML
+  commit: 68de7ab7dc861bc54171c6525c45f27d80a71fc3
+  tag: nuget/Microsoft.ML/7.0.0
+  workflowRun: https://github.com/Sylinko/Microsoft.ML/actions/runs/43032070885
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/Microsoft.ML/releases/download/nuget%2FMicrosoft.ML%2F7.0.0/Microsoft.ML.Tokenizers.Data.O200kBase.7.0.0.nupkg
+    sha256: 345f4b05c60542f94b35b0baaac1a2de3d9e31b0c21e8417e55b82cd28edf9c2
+  symbols:
+    url: https://github.com/Sylinko/Microsoft.ML/releases/download/nuget%2FMicrosoft.ML%2F7.0.0/Microsoft.ML.Tokenizers.Data.O200kBase.7.0.0.symbols.nupkg
+    sha256: d4cea9eb48b893e8ee22b26c62356faf283b688931dfd4c2f64c7125b00cd2d1
