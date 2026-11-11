@@ -1,0 +1,14 @@
+version: 999.20261111.7
+lowerVersion: 999.20261111.7
+source:
+  repository: Sylinko/OfficeCLI
+  commit: 98a133bba4a88ae828c7d202408e3cc28657b518
+  tag: nuget/OfficeCLI/999.20261111.7
+  workflowRun: https://github.com/Sylinko/OfficeCLI/actions/runs/43054923467
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/OfficeCLI/releases/download/nuget%2FOfficeCLI%2F999.20261111.7/OfficeCLI.999.20261111.7.nupkg
+    sha256: 77ccd31463bc4814de2e7592b1ec257c13c8699f747594532fe67363ae40a995
+  snupkg:
+    url: https://github.com/Sylinko/OfficeCLI/releases/download/nuget%2FOfficeCLI%2F999.20261111.7/OfficeCLI.999.20261111.7.snupkg
+    sha256: f321c9c44b774eee5df44ce63111d167d6c0f668862840ff39fa77563f516e67
