@@ -1,0 +1,11 @@
+version: 999.20261111.4
+lowerVersion: 999.20261111.4
+source:
+  repository: Sylinko/Porta.Pty
+  commit: dd6e1cfebb029a7356043de51da113ff28742a2e
+  tag: nuget/Porta.Pty/999.20261111.4
+  workflowRun: https://github.com/Sylinko/Porta.Pty/actions/runs/43036884496
+artifacts:
+  nupkg:
+    url: https://github.com/Sylinko/Porta.Pty/releases/download/nuget%2FPorta.Pty%2F999.20261111.4/Porta.Pty.999.20261111.4.nupkg
+    sha256: 50201864cd256ede07fd70f8bd016b114e385d8fd9e79fedb78a17cfbb90d30e
