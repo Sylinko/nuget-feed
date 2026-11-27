@@ -12,6 +12,10 @@ inputs:
     description: Directory containing .nupkg and optional .symbols.nupkg or .snupkg artifacts.
     required: false
     default: artifacts
+  reuse-existing-release:
+    description: Skip uploading local artifacts and instead download package assets from an existing release tag.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -28,14 +32,6 @@ runs:
         corepack prepare pnpm@10.33.0 --activate
         pnpm install --prod --frozen-lockfile --ignore-scripts --filter @sylinko/nuget-feed
 
-    - name: Create GitHub Release and upload package assets
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-        RELEASE_TAG: ${{ inputs.release-tag }}
-        ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
-      run: node "$GITHUB_ACTION_PATH/.github/actions/release/create-github-release.ts"
-
     - uses: actions/checkout@v6
       with:
         repository: Sylinko/nuget-feed
@@ -43,12 +39,14 @@ runs:
         path: ${{ github.workspace }}/.nuget-feed
         fetch-depth: 0
 
-    - name: Create feed release PR
+    - name: Validate packages, publish release assets, and open or update feed PR
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        FEED_TOKEN: ${{ inputs.token }}
         FEED_REPOSITORY: Sylinko/nuget-feed
         FEED_REPOSITORY_PATH: ${{ github.workspace }}/.nuget-feed
         RELEASE_TAG: ${{ inputs.release-tag }}
         ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
+        REUSE_EXISTING_RELEASE: ${{ inputs.reuse-existing-release }}
       run: node "$GITHUB_ACTION_PATH/.github/actions/release/release.ts"

@@ -115,13 +115,13 @@ New publications accept standard NuGet versions (1 to 4 numeric components, opti
 
 The action installs its locked production dependencies in its own directory, then performs these operations in order:
 
-1. Create or locate the producer's GitHub Release and upload package assets using its automatic GitHub token.
-2. Check out this feed repository using the supplied cross-repository token.
-3. Scan normal packages, read their nuspec IDs and versions, match optional symbols, check registrations, reject duplicate versions, and compute hashes.
-4. Write version manifests containing source repository, commit, release tag, workflow run, artifact URLs, and SHA256 hashes.
-5. Push a `release/batch/...` branch and open one PR for the batch.
+1. Check out this feed repository using the supplied cross-repository token.
+2. Scan packages (or download existing release assets when `reuse-existing-release: true`), validate nuspec IDs, NuGet versions, optional symbol matches, package registrations, and feed immutability (`bucket/<lowerId>/versions/<lowerVersion>.yml` must not already exist) before mutating any remote state.
+3. If validation passes and `reuse-existing-release` is false, create or locate the producer's GitHub Release and upload only the validated package assets.
+4. Stage version manifests containing source repository, commit, release tag, workflow run, artifact URLs, and SHA256 hashes.
+5. Push the `release/batch/...` branch idempotently and create or update the feed batch PR.
 
-**Current retry limitation:** upload happens before manifest validation, and the shared action currently uses `gh release upload --clobber`. It is not generally safe or idempotent to rerun publication against an existing release. Producer-side guards help, but do not replace a shared-action guarantee. If a run fails after uploading, inspect the release and any existing feed branch/PR before retrying. Never replace bytes already referenced by a published manifest.
+Because validation and feed-immutability checks run before creating or uploading GitHub Releases, failed validation leaves no orphaned remote release or branch state. Retrying a failed PR step (or setting `reuse-existing-release: true` for an already uploaded release) safely updates the pending branch and PR without overwriting any published feed version manifest.
 
 ### 4. Review and merge the feed PR
 

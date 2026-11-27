@@ -39,7 +39,7 @@ type CandidatePackage = {
 
 export async function releaseBatch(input: ReleaseBatchInput): Promise<ReleasedPackage[]> {
   const candidates = await discoverPackages(input.artifactsDirectory);
-  const released: ReleasedPackage[] = [];
+  const planned: { versionManifestPath: string; manifestYaml: string; releasedPackage: ReleasedPackage }[] = [];
 
   for (const candidate of candidates) {
     const packageManifestPath = join(input.feedRepositoryPath, "bucket", candidate.lowerId, "package.yml");
@@ -60,7 +60,7 @@ export async function releaseBatch(input: ReleaseBatchInput): Promise<ReleasedPa
       throw new Error(`version manifest already exists: bucket/${candidate.lowerId}/versions/${candidate.lowerVersion}.yml`);
     }
 
-    await writeText(versionManifestPath, stringifyManifestYaml(await buildVersionManifest(input, candidate)));
+    const manifestYaml = stringifyManifestYaml(await buildVersionManifest(input, candidate));
     const releasedPackage: ReleasedPackage = {
       id: candidate.id,
       version: candidate.version,
@@ -75,10 +75,14 @@ export async function releaseBatch(input: ReleaseBatchInput): Promise<ReleasedPa
     if (candidate.symbolsPath) {
       releasedPackage.symbolsPath = candidate.symbolsPath;
     }
-    released.push(releasedPackage);
+    planned.push({ versionManifestPath, manifestYaml, releasedPackage });
   }
 
-  return released;
+  for (const entry of planned) {
+    await writeText(entry.versionManifestPath, entry.manifestYaml);
+  }
+
+  return planned.map((entry) => entry.releasedPackage);
 }
 
 export function sanitizedReleaseTag(releaseTag: string): string {

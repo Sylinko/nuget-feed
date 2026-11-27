@@ -1,80 +1,105 @@
 import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
-import { walkFiles } from "../../../src/lib/file-system.ts";
 
-type ReleaseAssetInput = {
+export type UploadReleaseAssetsInput = {
   releaseTag: string;
-  artifactsDirectory: string;
+  assetPaths: string[];
   sourceRepository: string;
   sourceCommit: string;
-  workspace: string;
+  token: string;
 };
 
-const input: ReleaseAssetInput = {
-  releaseTag: requiredEnv("RELEASE_TAG"),
-  artifactsDirectory: process.env.ARTIFACTS_DIRECTORY || "artifacts",
-  sourceRepository: requiredEnv("GITHUB_REPOSITORY"),
-  sourceCommit: requiredEnv("GITHUB_SHA"),
-  workspace: requiredEnv("GITHUB_WORKSPACE")
+export type DownloadExistingReleaseAssetsInput = {
+  releaseTag: string;
+  sourceRepository: string;
+  targetDirectory: string;
+  token: string;
 };
 
-const artifactsDirectory = resolve(input.workspace, input.artifactsDirectory);
-const assets = (await walkFiles(artifactsDirectory))
-  .filter((file) => file.toLowerCase().endsWith(".nupkg") || file.toLowerCase().endsWith(".snupkg"))
-  .sort((left, right) => left.localeCompare(right));
+export function uploadGitHubReleaseAssets(input: UploadReleaseAssetsInput): void {
+  if (input.assetPaths.length === 0) {
+    throw new Error("expected at least one validated package asset to upload");
+  }
 
-if (assets.length === 0) {
-  throw new Error(`expected at least one .nupkg or .snupkg in ${artifactsDirectory}`);
-}
+  if (!releaseExists(input.sourceRepository, input.releaseTag, input.token)) {
+    gh([
+      "release",
+      "create",
+      input.releaseTag,
+      "--repo",
+      input.sourceRepository,
+      "--target",
+      input.sourceCommit,
+      "--title",
+      input.releaseTag,
+      "--notes",
+      `NuGet packages from ${input.sourceCommit}.`
+    ], input.token);
+  }
 
-if (!releaseExists(input.sourceRepository, input.releaseTag)) {
   gh([
     "release",
-    "create",
+    "upload",
+    input.releaseTag,
+    ...input.assetPaths,
+    "--repo",
+    input.sourceRepository,
+    "--clobber"
+  ], input.token);
+
+  console.log(`Uploaded ${input.assetPaths.length} package asset(s) to ${input.sourceRepository} release ${input.releaseTag}.`);
+}
+
+export function downloadExistingReleaseAssets(input: DownloadExistingReleaseAssetsInput): { targetCommit: string | undefined } {
+  const rawCommitish = ghQuery([
+    "release",
+    "view",
     input.releaseTag,
     "--repo",
     input.sourceRepository,
-    "--target",
-    input.sourceCommit,
-    "--title",
+    "--json",
+    "targetCommitish",
+    "--jq",
+    ".targetCommitish"
+  ], input.token).trim();
+
+  gh([
+    "release",
+    "download",
     input.releaseTag,
-    "--notes",
-    `NuGet packages from ${input.sourceCommit}.`
-  ]);
+    "--repo",
+    input.sourceRepository,
+    "--dir",
+    input.targetDirectory,
+    "--pattern",
+    "*.nupkg",
+    "--pattern",
+    "*.snupkg"
+  ], input.token);
+
+  const targetCommit = /^[0-9a-f]{40}$/i.test(rawCommitish) ? rawCommitish : undefined;
+  return { targetCommit };
 }
 
-gh([
-  "release",
-  "upload",
-  input.releaseTag,
-  ...assets,
-  "--repo",
-  input.sourceRepository,
-  "--clobber"
-]);
-
-console.log(`Uploaded ${assets.length} package asset(s) to ${input.sourceRepository} release ${input.releaseTag}.`);
-
-function releaseExists(repository: string, releaseTag: string): boolean {
+function releaseExists(repository: string, releaseTag: string, token: string): boolean {
   try {
-    gh(["release", "view", releaseTag, "--repo", repository]);
+    ghQuery(["release", "view", releaseTag, "--repo", repository, "--json", "tagName", "--jq", ".tagName"], token);
     return true;
   } catch {
     return false;
   }
 }
 
-function gh(args: string[]): void {
+function gh(args: string[], token: string): void {
   execFileSync("gh", args, {
     stdio: "inherit",
-    env: process.env
+    env: { ...process.env, GH_TOKEN: token }
   });
 }
 
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`missing required environment variable ${name}`);
-  }
-  return value;
+function ghQuery(args: string[], token: string): string {
+  return execFileSync("gh", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, GH_TOKEN: token }
+  });
 }

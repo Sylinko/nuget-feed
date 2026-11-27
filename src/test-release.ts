@@ -12,6 +12,7 @@ type Fixture = {
 
 await testBatchReleaseWritesMultipleManifests();
 await testFourPartVersionAndTrailingZeroNormalization();
+await testPartialBatchFailureWritesNoManifests();
 await testDuplicatePackageVersionFails();
 await testUnmatchedSymbolsPackageFails();
 await testMissingPackageManifestFails();
@@ -64,6 +65,20 @@ async function testFourPartVersionAndTrailingZeroNormalization(): Promise<void> 
       () => releaseBatch(defaultInput(fixture)),
       /duplicate package version in artifacts: example\.alpha@12\.2\.0/
     );
+  });
+}
+
+async function testPartialBatchFailureWritesNoManifests(): Promise<void> {
+  await usingFixture(async (fixture) => {
+    await writePackageManifest(fixture.root, "Example.Alpha", "example.alpha");
+    await writeNupkg(path.join(fixture.artifacts, "Example.Alpha.1.0.0.nupkg"), "Example.Alpha", "1.0.0");
+    await writeNupkg(path.join(fixture.artifacts, "Example.Unregistered.1.0.0.nupkg"), "Example.Unregistered", "1.0.0");
+
+    await assert.rejects(
+      () => releaseBatch(defaultInput(fixture)),
+      /package manifest does not exist/
+    );
+    assert.equal(await pathExists(path.join(fixture.root, "bucket", "example.alpha", "versions", "1.0.0.yml")), false);
   });
 }
 
