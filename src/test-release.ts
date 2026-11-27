@@ -11,6 +11,7 @@ type Fixture = {
 };
 
 await testBatchReleaseWritesMultipleManifests();
+await testFourPartVersionAndTrailingZeroNormalization();
 await testDuplicatePackageVersionFails();
 await testUnmatchedSymbolsPackageFails();
 await testMissingPackageManifestFails();
@@ -37,6 +38,32 @@ async function testBatchReleaseWritesMultipleManifests(): Promise<void> {
     assert.match(alphaManifest, /symbols:/);
     assert.match(alphaManifest, /Example.Alpha.1.0.0.nupkg/);
     assert.match(betaManifest, /Example.Beta.2.0.0.nupkg/);
+  });
+}
+
+async function testFourPartVersionAndTrailingZeroNormalization(): Promise<void> {
+  await usingFixture(async (fixture) => {
+    await writePackageManifest(fixture.root, "Example.Alpha", "example.alpha");
+    await writeNupkg(path.join(fixture.artifacts, "Example.Alpha.12.2.0.1.nupkg"), "Example.Alpha", "12.2.0.1");
+
+    const released = await releaseBatch(defaultInput(fixture));
+    assert.equal(released.length, 1);
+    assert.equal(await pathExists(path.join(fixture.root, "bucket", "example.alpha", "versions", "12.2.0.1.yml")), true);
+
+    const manifest = await readText(path.join(fixture.root, "bucket", "example.alpha", "versions", "12.2.0.1.yml"));
+    assert.match(manifest, /version: 12\.2\.0\.1/);
+    assert.match(manifest, /lowerVersion: 12\.2\.0\.1/);
+  });
+
+  await usingFixture(async (fixture) => {
+    await writePackageManifest(fixture.root, "Example.Alpha", "example.alpha");
+    await writeNupkg(path.join(fixture.artifacts, "Example.Alpha.12.2.0.nupkg"), "Example.Alpha", "12.2.0");
+    await writeNupkg(path.join(fixture.artifacts, "Example.Alpha.12.2.0.0.nupkg"), "Example.Alpha", "12.2.0.0");
+
+    await assert.rejects(
+      () => releaseBatch(defaultInput(fixture)),
+      /duplicate package version in artifacts: example\.alpha@12\.2\.0/
+    );
   });
 }
 

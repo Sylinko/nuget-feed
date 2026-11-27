@@ -5,7 +5,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { parseManifestYaml, stringifyManifestYaml } from "./lib/manifest-yaml.ts";
 import { readNuspecMetadata } from "./lib/nuget-package.ts";
-import { compareVersionsText, isSemVer2Package, lowerNuGetVersion } from "./lib/nuget-version.ts";
+import { compareVersionsText, isSemVer2Package, isValidNuGetVersion, lowerNuGetVersion, parseNuGetVersion } from "./lib/nuget-version.ts";
 import { generateFeed } from "./lib/nuget-v3.ts";
 import type { VerifiedRecord } from "./lib/types.ts";
 import worker from "../worker/src/index.ts";
@@ -46,6 +46,31 @@ function testNuspecAndVersions(): void {
   assert.ok(compareVersionsText("1.0.0", "1.0.0-rc.10") > 0);
   assert.equal(compareVersionsText("1.0.0+one", "1.0.0+two"), 0);
   assert.equal(lowerNuGetVersion("1.0.0-RC+Build"), "1.0.0-rc");
+
+  assert.equal(lowerNuGetVersion("1"), "1.0.0");
+  assert.equal(lowerNuGetVersion("1.2"), "1.2.0");
+  assert.equal(lowerNuGetVersion("12.2.0.0"), "12.2.0");
+  assert.equal(lowerNuGetVersion("01.02.03.04"), "1.2.3.4");
+  assert.equal(lowerNuGetVersion("12.2.0.1"), "12.2.0.1");
+  assert.equal(lowerNuGetVersion("12.2.0.1-RC+Build"), "12.2.0.1-rc");
+  assert.equal(parseNuGetVersion("12.2.0.0")?.revision, 0);
+
+  for (const invalidVersion of ["1.0.0-01", "1.0.0-alpha.01", "1.2.3.4.5", "1.0.0.2147483648", "1.0.0-", "1.0.0+", "1.0.0-a..b", " 1.0.0"]) {
+    assert.equal(isValidNuGetVersion(invalidVersion), false, `expected invalid version: ${invalidVersion}`);
+  }
+
+  assert.equal(compareVersionsText("12.2.0", "12.2.0.0"), 0);
+  assert.ok(compareVersionsText("12.2.0", "12.2.0.1-alpha") < 0);
+  assert.ok(compareVersionsText("12.2.0.1-alpha", "12.2.0.1-alpha.1") < 0);
+  assert.ok(compareVersionsText("12.2.0.1-alpha.1", "12.2.0.1") < 0);
+  assert.ok(compareVersionsText("12.2.0.1", "12.2.1") < 0);
+  assert.ok(compareVersionsText("1.0.0-1", "1.0.0-a") < 0);
+  assert.ok(compareVersionsText("1.0.0-2", "1.0.0-10") < 0);
+
+  assert.equal(isSemVer2Package({ ...metadata, version: "12.2.0.1", dependencyGroups: [] }), false);
+  assert.equal(isSemVer2Package({ ...metadata, version: "12.2.0.1-alpha", dependencyGroups: [] }), false);
+  assert.equal(isSemVer2Package({ ...metadata, version: "12.2.0.1-alpha.1", dependencyGroups: [] }), true);
+  assert.equal(isSemVer2Package({ ...metadata, version: "12.2.0.1+build.1", dependencyGroups: [] }), true);
 }
 
 async function testGenerationAndQueries(): Promise<void> {
@@ -55,11 +80,12 @@ async function testGenerationAndQueries(): Promise<void> {
     old.metadata.iconFile = "icon.png";
     old.metadata.readmeFile = "README.md";
     old.assets = [{ name: "icon.png", content: Buffer.from("icon") }, { name: "README.md", content: Buffer.from("# README\n<script>alert(1)</script>") }];
+    const patch = record("Example.Alpha", "6.0.0.1");
     const dependent = record("Example.Beta", "1.0.0");
     dependent.metadata.dependencyGroups = [{ dependencies: [{ id: "Other", range: "[1.0.0+build,)" }] }];
     const hidden = record("Example.Alpha", "999.20261001.8");
     hidden.version.listed = false;
-    const records = [hidden, record("Example.Alpha", "7.0.0-beta.2"), old, record("Example.Alpha", "7.0.0-beta"), dependent];
+    const records = [hidden, record("Example.Alpha", "7.0.0-beta.2"), old, patch, record("Example.Alpha", "7.0.0-beta"), dependent];
     await generateFeed(root, records);
     const generated = path.join(root, "generated");
     const assets = {
@@ -86,7 +112,7 @@ async function testGenerationAndQueries(): Promise<void> {
     assert.equal(registrationResponse.headers.get("Content-Encoding"), "gzip");
     const registration = JSON.parse(gunzipSync(Buffer.from(await registrationResponse.arrayBuffer())).toString("utf8"));
     const page = registration.items[0];
-    assert.deepEqual(page.items.map((leaf: { catalogEntry: { version: string } }) => leaf.catalogEntry.version), ["6.0.0", "7.0.0-beta", "7.0.0-beta.2", "999.20261001.8"]);
+    assert.deepEqual(page.items.map((leaf: { catalogEntry: { version: string } }) => leaf.catalogEntry.version), ["6.0.0", "6.0.0.1", "7.0.0-beta", "7.0.0-beta.2", "999.20261001.8"]);
     const leaf = JSON.parse(await readFile(path.join(generated, "v3/registration/example.alpha/6.0.0.json"), "utf8"));
     assert.equal(typeof leaf.catalogEntry, "string");
     const catalog = JSON.parse(await readFile(path.join(generated, "catalog/example.alpha/6.0.0.json"), "utf8"));
@@ -97,7 +123,7 @@ async function testGenerationAndQueries(): Promise<void> {
 
     const browse = await query("/v3/query");
     assert.equal(browse.totalHits, 1);
-    assert.equal(browse.data[0].version, "6.0.0");
+    assert.equal(browse.data[0].version, "6.0.0.1");
     assert.equal((await query("/v3/query?semVerLevel=2.0.0")).totalHits, 2);
     assert.equal((await query("/v3/query?prerelease=true")).data[0].version, "7.0.0-beta");
     assert.equal((await query("/v3/query?prerelease=true&semVerLevel=2.0.0")).data[0].version, "7.0.0-beta.2");
@@ -108,7 +134,7 @@ async function testGenerationAndQueries(): Promise<void> {
     assert.equal((await query("/v3/query?q=sample%20alpha")).totalHits, 1);
     assert.equal((await query("/v3/query?packageType=DotnetTool")).totalHits, 0);
     const autocomplete = await request("/v3/autocomplete?id=EXAMPLE.ALPHA&prerelease=true&semVerLevel=2.0.0&take=1");
-    assert.deepEqual(await autocomplete.json(), { data: ["6.0.0", "7.0.0-beta", "7.0.0-beta.2"] });
+    assert.deepEqual(await autocomplete.json(), { data: ["6.0.0", "6.0.0.1", "7.0.0-beta", "7.0.0-beta.2"] });
     const ids = await request("/v3/autocomplete?q=alpha");
     assert.deepEqual(await ids.json(), { totalHits: 1, data: ["Example.Alpha"] });
     assert.deepEqual(await (await request("/v3/autocomplete?id=unknown")).json(), { data: [] });
@@ -121,6 +147,9 @@ async function testGenerationAndQueries(): Promise<void> {
     const redirect = await request("/v3-flatcontainer/example.alpha/6.0.0/example.alpha.6.0.0.nupkg");
     assert.equal(redirect.status, 307);
     assert.equal(redirect.headers.get("Location"), old.version.artifacts.nupkg.url);
+    const redirectPatch = await request("/v3-flatcontainer/example.alpha/6.0.0.1/example.alpha.6.0.0.1.nupkg");
+    assert.equal(redirectPatch.status, 307);
+    assert.equal(redirectPatch.headers.get("Location"), patch.version.artifacts.nupkg.url);
     assert.equal((await request("/v3-flatcontainer/example.alpha/999.20261001.8/example.alpha.999.20261001.8.nupkg")).status, 307);
     assert.equal((await request("/v3-flatcontainer/example.alpha/0.0.0/example.alpha.0.0.0.nupkg")).status, 404);
   } finally {

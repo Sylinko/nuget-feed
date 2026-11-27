@@ -115,7 +115,7 @@ async function discoverPackages(artifactsDirectory: string): Promise<CandidatePa
       throw new Error(`nupkg nuspec id ${identity.id} is not a valid NuGet package ID`);
     }
     if (!isValidNuGetVersion(identity.version)) {
-      throw new Error(`nupkg nuspec version ${identity.version}: this feed requires a three-part SemVer version`);
+      throw new Error(`nupkg nuspec version ${identity.version}: is not a valid NuGet version`);
     }
 
     const lowerId = lowerNuGetId(identity.id);

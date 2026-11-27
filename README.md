@@ -111,7 +111,7 @@ Inside the producer's publishing job, after packing:
 
 Our date-based producer convention is `999.YYYYMMDD.<CI-run-number>`. It is a producer policy, not a requirement to rename older feed versions. Existing versions such as `6.0.0` remain valid. A new publication needs a new version; keep release assets for published versions unchanged.
 
-New publications must use three-part SemVer versions. NuGet has additional version forms that this feed intentionally does not accept, including two- and four-component versions. Version identities ignore build metadata and prerelease casing, so `1.0.0+one` and `1.0.0+two` cannot be published as separate packages. Dependency ranges remain NuGet strings and are never evaluated with npm range rules.
+New publications accept standard NuGet versions (1 to 4 numeric components, optional prerelease labels and build metadata). Version identities ignore build metadata, trailing zero revision components (when the 4th segment is `0`), and prerelease casing—for example `12.2.0.0` normalizes to `12.2.0` while `12.2.0.1` normalizes to `12.2.0.1`, and `1.0.0+one` and `1.0.0+two` cannot be published as separate packages. Dependency ranges remain NuGet strings and are never evaluated with npm range rules.
 
 The action installs its locked production dependencies in its own directory, then performs these operations in order:
 

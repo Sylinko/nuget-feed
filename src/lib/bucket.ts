@@ -95,7 +95,7 @@ export function validateBucketManifests(bucket: Bucket): string[] {
       const fileLowerVersion = versionEntry.fileName.slice(0, -".yml".length);
 
       if (version && !isValidNuGetVersion(version)) {
-        errors.push(`${label}: this feed requires a three-part SemVer version`);
+        errors.push(`${label}: is not a valid NuGet version`);
       }
       if (lowerVersion && !assertLowercase(lowerVersion)) {
         errors.push(`${label}: lowerVersion must be lowercase`);
